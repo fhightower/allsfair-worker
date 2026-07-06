@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Allsfair</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+
+        #app {
+            width: 100%;
+            max-width: 480px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            text-align: center;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+
+        h2 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            color: #ccc;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+
+        .screen { display: none; }
+        .screen.active { display: block; }
+
+        button {
+            background: #4a4ae8;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #3b3bd0; }
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        input[type="text"] {
+            background: #2a2a4a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            padding: 0.6rem 0.8rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            width: 100%;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #4a4ae8;
+        }
+
+        .card {
+            background: #22223a;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .divider {
+            text-align: center;
+            color: #666;
+            margin: 1.5rem 0;
+            font-size: 0.85rem;
+        }
+
+        .game-code {
+            font-family: monospace;
+            font-size: 1.1rem;
+            background: #2a2a4a;
+            padding: 0.5rem 0.8rem;
+            border-radius: 4px;
+            user-select: all;
+            display: inline-block;
+            word-break: break-all;
+        }
+
+        .copy-btn {
+            font-size: 0.8rem;
+            padding: 0.3rem 0.6rem;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: #999;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .info-bar .player-label {
+            font-weight: bold;
+        }
+        .info-bar .p1 { color: #39FF14; }
+        .info-bar .p2 { color: #FF142A; }
+
+        /* Board styling - override backend styles */
+        #board table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        #board td {
+            border: 1px solid #555;
+            padding: 1rem;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: bold;
+            width: 33.33%;
+        }
+        #board .player0 {
+            background: #2a2a4a;
+            color: #888;
+        }
+        #board .player1 {
+            background: #39FF14;
+            color: #000;
+        }
+        #board .player2 {
+            background: #FF142A;
+            color: #fff;
+        }
+        #board details {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #888;
+        }
+        #board details summary {
+            cursor: pointer;
+        }
+        #board details table {
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+        #board details td {
+            padding: 0.4rem;
+            font-size: 0.8rem;
+        }
+
+        /* Override the backend's inline <style> */
+        #board style { display: none; }
+
+        .move-form label {
+            display: block;
+            font-size: 0.85rem;
+            color: #aaa;
+            margin-bottom: 0.3rem;
+        }
+        .move-form .move-row {
+            margin-bottom: 0.75rem;
+        }
+        .move-form .hint {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 0.3rem;
+        }
+        .move-form button {
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        .adjacency {
+            font-size: 0.75rem;
+            color: #666;
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+        .adjacency code {
+            color: #aaa;
+        }
+
+        .status-msg {
+            text-align: center;
+            padding: 1rem;
+            color: #aaa;
+            font-style: italic;
+        }
+
+        .winner-banner {
+            text-align: center;
+            font-size: 1.3rem;
+            font-weight: bold;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .error-msg {
+            color: #ff6b6b;
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+
+        .back-btn {
+            background: transparent;
+            color: #888;
+            font-size: 0.85rem;
+            padding: 0.4rem 0;
+            margin-bottom: 1rem;
+        }
+        .back-btn:hover { color: #ccc; background: transparent; }
+
+        .resume-bar {
+            background: #2a2a4a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+        .resume-bar button {
+            font-size: 0.8rem;
+            padding: 0.4rem 0.8rem;
+        }
+        .resume-bar .dismiss {
+            background: transparent;
+            color: #888;
+            margin-left: 0.5rem;
+        }
+
+        .mode-toggle {
+            margin-bottom: 0.9rem;
+            font-size: 0.9rem;
+            color: #bbb;
+        }
+        .mode-toggle label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+        }
+        .mode-toggle input {
+            accent-color: #4a4ae8;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- HOME SCREEN -->
+        <div id="home-screen" class="screen active">
+            <h1>Allsfair</h1>
+            <p class="subtitle">A game of simultaneous strategy</p>
+
+            <div id="resume-bar" class="resume-bar" style="display:none">
+                <span>You have a game in progress.</span>
+                <div>
+                    <button onclick="resumeGame()">Resume</button>
+                    <button class="dismiss" onclick="clearSaved()">Dismiss</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Create a new game</h2>
+                <!-- bot returns in v2 (see design spec, "ML bot seam") -->
+                <div class="mode-toggle" style="display:none">
+                    <label>
+                        <input type="checkbox" id="play-vs-bot">
+                        Play against bot (ML)
+                    </label>
+                </div>
+                <button id="create-btn" onclick="createGame()" style="width:100%">Create Game</button>
+                <p id="create-error" class="error-msg"></p>
+            </div>
+
+            <div class="divider">- or -</div>
+
+            <div class="card">
+                <h2>Join an existing game</h2>
+                <div style="margin-bottom:0.75rem">
+                    <input type="text" id="join-code" placeholder="Paste game code here">
+                </div>
+                <button id="join-btn" onclick="joinGame()" style="width:100%">Join Game</button>
+                <p id="join-error" class="error-msg"></p>
+            </div>
+        </div>
+
+        <!-- LOBBY SCREEN -->
+        <div id="lobby-screen" class="screen">
+            <button class="back-btn" onclick="goHome()">Back</button>
+            <h1>Allsfair</h1>
+            <div class="card">
+                <h2>Game created!</h2>
+                <p id="lobby-share-text" style="margin-bottom:0.75rem; color:#aaa;">Share this code with your opponent:</p>
+                <div id="lobby-code-row" style="margin-bottom:1rem">
+                    <span id="lobby-code" class="game-code"></span>
+                    <button class="copy-btn" onclick="copyCode()">Copy</button>
+                </div>
+                <p id="lobby-bot-text" style="margin-bottom:1rem; color:#aaa; display:none;">Bot opponent is ready.</p>
+                <button id="start-btn" onclick="startPlaying()" style="width:100%">Start Playing</button>
+            </div>
+        </div>
+
+        <!-- GAME SCREEN -->
+        <div id="game-screen" class="screen">
+            <button class="back-btn" onclick="leaveGame()">Leave game</button>
+
+            <div class="info-bar">
+                <span>Game: <span id="game-code-display" class="game-code" style="font-size:0.75rem"></span></span>
+                <span>You are: <span id="player-label" class="player-label"></span></span>
+            </div>
+
+            <div class="card">
+                <div id="board">
+                    <table><tr><td class="player1">a: 3</td><td class="player0">b: 0</td><td class="player0">c: 0</td></tr><tr><td class="player0">d: 0</td><td class="player0">e: 0</td><td class="player0">f: 0</td></tr><tr><td class="player0">g: 0</td><td class="player0">h: 0</td><td class="player2">i: 3</td></tr></table>
+                </div>
+            </div>
+
+            <div id="winner-section" style="display:none">
+                <div id="winner-banner" class="winner-banner"></div>
+                <button onclick="goHome()" style="width:100%">Back to Home</button>
+            </div>
+
+            <div id="move-section">
+                <div class="card">
+                    <form id="move-form" class="move-form" onsubmit="submitMoves(event)">
+                        <div class="move-row">
+                            <label for="move1">Move 1</label>
+                            <input type="text" id="move1" name="move1" placeholder="" required>
+                        </div>
+                        <div class="move-row">
+                            <label for="move2">Move 2</label>
+                            <input type="text" id="move2" name="move2" placeholder="" required>
+                        </div>
+                        <div class="move-row">
+                            <label for="move3">Move 3</label>
+                            <input type="text" id="move3" name="move3" placeholder="" required>
+                        </div>
+                        <p class="hint">Format: {from}{count}{to} — e.g. "a3b" moves 3 troops from a to b</p>
+                        <button type="submit" id="submit-btn">Submit Moves</button>
+                        <p id="move-error" class="error-msg"></p>
+                    </form>
+
+                    <div id="waiting-msg" class="status-msg" style="display:none">
+                        Waiting for opponent to submit moves...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api';
+
+        let gameGuid = null;
+        let secret = null;
+        let playerNumber = null;
+        let playAgainstMl = false;
+        let pollTimer = null;
+        let lastBoardHtml = '';
+
+        // --- Screen management ---
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        function goHome() {
+            stopPolling();
+            showScreen('home-screen');
+            checkSavedGame();
+        }
+
+        function leaveGame() {
+            stopPolling();
+            showScreen('home-screen');
+            checkSavedGame();
+        }
+
+        // --- API helper ---
+
+        async function api(action, params = {}) {
+            const body = { action, ...params };
+            const resp = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!resp.ok) {
+                const text = await resp.text();
+                throw new Error(text || `Request failed (${resp.status})`);
+            }
+            return resp.json();
+        }
+
+        // --- localStorage ---
+
+        function saveGameState() {
+            localStorage.setItem('allsfair_game', JSON.stringify({
+                gameGuid, secret, playerNumber, playAgainstMl
+            }));
+        }
+
+        function loadGameState() {
+            const saved = localStorage.getItem('allsfair_game');
+            if (!saved) return null;
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                localStorage.removeItem('allsfair_game');
+                return null;
+            }
+        }
+
+        function clearSaved() {
+            localStorage.removeItem('allsfair_game');
+            gameGuid = null;
+            secret = null;
+            playerNumber = null;
+            playAgainstMl = false;
+            document.getElementById('resume-bar').style.display = 'none';
+        }
+
+        function checkSavedGame() {
+            const saved = loadGameState();
+            document.getElementById('resume-bar').style.display = saved ? 'flex' : 'none';
+        }
+
+        function resumeGame() {
+            const saved = loadGameState();
+            if (!saved) return;
+            gameGuid = saved.gameGuid;
+            secret = saved.secret;
+            playerNumber = saved.playerNumber;
+            playAgainstMl = Boolean(saved.playAgainstMl);
+            enterGameScreen();
+            refreshBoard();
+        }
+
+        // --- Create game ---
+
+        async function createGame() {
+            const btn = document.getElementById('create-btn');
+            const errEl = document.getElementById('create-error');
+            const playVsBot = document.getElementById('play-vs-bot').checked;
+            errEl.textContent = '';
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+
+            try {
+                const data = await api('create_game', { play_against_ml: playVsBot });
+                gameGuid = data.game_guid;
+                secret = data.secret;
+                playerNumber = 1;
+                playAgainstMl = Object.prototype.hasOwnProperty.call(data, 'play_against_ml')
+                    ? Boolean(data.play_against_ml)
+                    : playVsBot;
+                saveGameState();
+
+                document.getElementById('lobby-code').textContent = gameGuid;
+                updateLobbyModeUi();
+                showScreen('lobby-screen');
+            } catch (e) {
+                errEl.textContent = e.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Game';
+            }
+        }
+
+        // --- Join game ---
+
+        async function joinGame() {
+            const code = document.getElementById('join-code').value.trim();
+            const btn = document.getElementById('join-btn');
+            const errEl = document.getElementById('join-error');
+            errEl.textContent = '';
+
+            if (!code) {
+                errEl.textContent = 'Please enter a game code.';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Joining...';
+
+            try {
+                const data = await api('join_game', { game_guid: code });
+                gameGuid = data.game_guid;
+                secret = data.secret;
+                playerNumber = 2;
+                playAgainstMl = false;
+                saveGameState();
+                enterGameScreen(data.html);
+            } catch (e) {
+                errEl.textContent = e.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Join Game';
+            }
+        }
+
+        // --- Lobby ---
+
+        function copyCode() {
+            navigator.clipboard.writeText(gameGuid).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 1500);
+            });
+        }
+
+        function startPlaying() {
+            enterGameScreen();
+            refreshBoard();
+        }
+
+        function updateLobbyModeUi() {
+            const shareText = document.getElementById('lobby-share-text');
+            const codeRow = document.getElementById('lobby-code-row');
+            const botText = document.getElementById('lobby-bot-text');
+            const startBtn = document.getElementById('start-btn');
+
+            if (playAgainstMl) {
+                shareText.textContent = 'Bot match created.';
+                codeRow.style.display = 'none';
+                botText.style.display = 'block';
+                startBtn.textContent = 'Start Bot Match';
+                return;
+            }
+
+            shareText.textContent = 'Share this code with your opponent:';
+            codeRow.style.display = 'block';
+            botText.style.display = 'none';
+            startBtn.textContent = 'Start Playing';
+        }
+
+        function syncModeFromResponse(data) {
+            if (Object.prototype.hasOwnProperty.call(data, 'play_against_ml')) {
+                const previousMode = playAgainstMl;
+                playAgainstMl = Boolean(data.play_against_ml);
+                if (previousMode !== playAgainstMl) {
+                    renderPlayerLabel();
+                }
+            }
+        }
+
+        // --- Game screen ---
+
+        function renderPlayerLabel() {
+            const label = document.getElementById('player-label');
+            label.textContent = playAgainstMl && playerNumber === 1
+                ? 'Player 1 (vs Bot)'
+                : `Player ${playerNumber}`;
+            label.className = 'player-label ' + (playerNumber === 1 ? 'p1' : 'p2');
+        }
+
+        function enterGameScreen(boardHtml) {
+            const codeDisplay = document.getElementById('game-code-display');
+            codeDisplay.textContent = gameGuid;
+
+            renderPlayerLabel();
+
+            if (boardHtml) {
+                updateBoard(boardHtml);
+            }
+
+            showMoveForm();
+            showScreen('game-screen');
+        }
+
+        function updateBoard(html) {
+            // Strip the backend's <style> tag since we have our own styles
+            document.getElementById('board').innerHTML = html;
+            lastBoardHtml = html;
+            checkForWinner(html);
+        }
+
+        function checkForWinner(html) {
+            if (html.includes('Winner is team')) {
+                const winnerSection = document.getElementById('winner-section');
+                const moveSection = document.getElementById('move-section');
+                const banner = document.getElementById('winner-banner');
+
+                // Extract winner number
+                const match = html.match(/Winner is team.*?(\d)/);
+                if (match) {
+                    const winner = parseInt(match[1]);
+                    const isYou = winner === playerNumber;
+                    banner.textContent = isYou ? 'You win!' : 'You lose!';
+                    banner.style.background = winner === 1 ? '#39FF14' : '#FF142A';
+                    banner.style.color = winner === 1 ? '#000' : '#fff';
+                }
+
+                winnerSection.style.display = 'block';
+                moveSection.style.display = 'none';
+                stopPolling();
+                clearSaved();
+            } else {
+                document.getElementById('winner-section').style.display = 'none';
+                document.getElementById('move-section').style.display = 'block';
+            }
+        }
+
+        function showMoveForm() {
+            document.getElementById('move-form').style.display = 'block';
+            document.getElementById('waiting-msg').style.display = 'none';
+            document.getElementById('submit-btn').disabled = false;
+            document.getElementById('submit-btn').textContent = 'Submit Moves';
+            document.getElementById('move-error').textContent = '';
+        }
+
+        function showWaiting() {
+            document.getElementById('move-form').style.display = 'none';
+            const waitingEl = document.getElementById('waiting-msg');
+            waitingEl.textContent = playAgainstMl
+                ? 'Bot is preparing moves...'
+                : 'Waiting for opponent to submit moves...';
+            waitingEl.style.display = 'block';
+        }
+
+        // --- Submit moves ---
+
+        async function submitMoves(event) {
+            event.preventDefault();
+            const errEl = document.getElementById('move-error');
+            errEl.textContent = '';
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+
+            const moves = [
+                document.getElementById('move1').value.trim().toLowerCase(),
+                document.getElementById('move2').value.trim().toLowerCase(),
+                document.getElementById('move3').value.trim().toLowerCase(),
+            ];
+
+            // Basic client-side format check
+            const movePattern = /^[a-i]\d+[a-i]$/;
+            for (const m of moves) {
+                if (!movePattern.test(m)) {
+                    errEl.textContent = `Invalid move format: "${m}". Use format like "a2b".`;
+                    btn.disabled = false;
+                    btn.textContent = 'Submit Moves';
+                    return;
+                }
+            }
+
+            try {
+                let latestResponse = null;
+                for (const move of moves) {
+                    const data = await api('submit_move', {
+                        game_guid: gameGuid,
+                        move: move,
+                        secret: secret,
+                        player: String(playerNumber),
+                    });
+                    syncModeFromResponse(data);
+                    latestResponse = data;
+                }
+
+                // Clear form
+                document.getElementById('move1').value = '';
+                document.getElementById('move2').value = '';
+                document.getElementById('move3').value = '';
+
+                updateBoard(latestResponse.html);
+
+                if (latestResponse.round_complete) {
+                    showMoveForm();
+                    return;
+                }
+
+                const targetCompletedRounds = latestResponse.completed_rounds + 1;
+                showWaiting();
+                startPolling(targetCompletedRounds);
+            } catch (e) {
+                errEl.textContent = e.message;
+                btn.disabled = false;
+                btn.textContent = 'Submit Moves';
+            }
+        }
+
+        // --- Polling ---
+
+        async function refreshBoard() {
+            try {
+                const data = await api('get_moves', {
+                    game_guid: gameGuid,
+                    secret: secret,
+                    player: String(playerNumber),
+                });
+                syncModeFromResponse(data);
+                updateBoard(data.html);
+            } catch (e) {
+                console.error('Poll error:', e);
+            }
+        }
+
+        function startPolling(targetCompletedRounds) {
+            stopPolling();
+
+            pollTimer = setInterval(async () => {
+                try {
+                    const data = await api('get_moves', {
+                        game_guid: gameGuid,
+                        secret: secret,
+                        player: String(playerNumber),
+                    });
+                    syncModeFromResponse(data);
+
+                    if (data.round_complete && data.completed_rounds >= targetCompletedRounds) {
+                        updateBoard(data.html);
+                        stopPolling();
+                        showMoveForm();
+                    }
+                } catch (e) {
+                    console.error('Poll error:', e);
+                }
+            }, 3000);
+        }
+
+        function stopPolling() {
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+        }
+
+        // --- Init ---
+
+        checkSavedGame();
+    </script>
+</body>
+</html>
