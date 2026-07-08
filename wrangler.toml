@@ -1,6 +1,11 @@
 name = "allsfair"
+account_id = "fd78c43dfff0306657c47ca30c365725"
 main = "src/index.ts"
 compatibility_date = "2026-07-01"
+
+routes = [
+  { pattern = "allsfair.hightower.space", custom_domain = true }
+]
 
 [assets]
 directory = "./public"
@@ -8,4 +13,4 @@ directory = "./public"
 [[d1_databases]]
 binding = "DB"
 database_name = "allsfair"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "6df5d3b3-8574-4d57-a011-e7f629f8be68"
