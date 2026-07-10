@@ -89,10 +89,26 @@ describe("POST /api", () => {
     expect(await resp.text()).toBe("No game found with guid: nope");
   });
 
-  it("returns 400 for play_against_ml (v1 bot seam)", async () => {
-    const resp = await api({ action: "create_game", play_against_ml: true });
-    expect(resp.status).toBe(400);
-    expect(await resp.text()).toBe("Play against ML is not yet supported");
+  it("plays a bot game over HTTP", async () => {
+    const created = (await (
+      await api({ action: "create_game", play_against_ml: true })
+    ).json()) as any;
+    expect(created.play_against_ml).toBe(true);
+
+    let last: any;
+    for (const move of ["a1b", "a1d", "b1e"]) {
+      const resp = await api({
+        action: "submit_move",
+        game_guid: created.game_guid,
+        move,
+        secret: created.secret,
+        player: 1,
+      });
+      expect(resp.status).toBe(200);
+      last = await resp.json();
+    }
+    expect(last.player_2_move_count).toBe(3);
+    expect(last.round_complete).toBe(true);
   });
 
   it("returns 400 for non-POST and invalid JSON", async () => {

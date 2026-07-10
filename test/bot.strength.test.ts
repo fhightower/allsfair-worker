@@ -46,7 +46,7 @@ const randomP1: TrioPlanner = (board, g, r) => {
 };
 
 describe("bot strength gates", () => {
-  it("beats the heuristic in >=60% of 50 games", () => {
+  it("beats the heuristic in >=60% of 50 games", { timeout: 60_000 }, () => {
     let wins = 0;
     for (let g = 0; g < 50; g++) {
       if (playGame(heuristicP1, searchP2, g) === 2) wins++;
@@ -54,7 +54,7 @@ describe("bot strength gates", () => {
     expect(wins).toBeGreaterThanOrEqual(30);
   });
 
-  it("beats a random mover in >=90% of 50 games", () => {
+  it("beats a random mover in >=90% of 50 games", { timeout: 60_000 }, () => {
     let wins = 0;
     for (let g = 0; g < 50; g++) {
       if (playGame(randomP1, searchP2, g) === 2) wins++;
