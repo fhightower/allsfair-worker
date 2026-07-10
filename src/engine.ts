@@ -264,4 +264,24 @@ export class Board {
       this.state[TEAM_2_HOME_SQUARE].troopCount += team2SquaresOwned;
     }
   }
+
+  /** Game-state clone for bot planning: copied state, fresh empty history. */
+  clone(): Board {
+    const copy = new Board();
+    copy.state = structuredClone(this.state);
+    return copy;
+  }
+
+  /**
+   * Apply a single team's move outside pair resolution (bot planning only):
+   * no-op unless the team owns a populated start square; clamps troops to
+   * what the square holds, then standard move/attack semantics.
+   */
+  applyPlannedMove(move: Move, team: number): void {
+    const start = this.state[move.start];
+    if (start.owner !== team || start.troopCount <= 0) return;
+    move.troopCount = Math.min(move.troopCount, start.troopCount);
+    start.troopCount -= move.troopCount;
+    this.applyMove(move, team);
+  }
 }

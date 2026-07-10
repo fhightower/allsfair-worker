@@ -145,3 +145,35 @@ describe("history and html", () => {
     );
   });
 });
+
+describe("planning helpers", () => {
+  it("clone copies state without sharing mutations", () => {
+    const board = new Board();
+    const copy = board.clone();
+    copy.state.a.troopCount = 99;
+    expect(board.state.a.troopCount).toBe(3);
+    expect(copy.history).toHaveLength(0);
+  });
+
+  it("applyPlannedMove moves troops with clamping", () => {
+    const board = new Board();
+    board.applyPlannedMove(new Move("a9b"), 1);
+    expect(board.state.a.troopCount).toBe(0);
+    expect(board.state.b).toMatchObject({ owner: 1, troopCount: 3 });
+  });
+
+  it("applyPlannedMove is a no-op from unowned or empty squares", () => {
+    const board = new Board();
+    board.applyPlannedMove(new Move("b1e"), 1); // b unowned
+    expect(board.state.e).toMatchObject({ owner: 0, troopCount: 0 });
+    board.applyPlannedMove(new Move("i1h"), 1); // i owned by team 2
+    expect(board.state.h.troopCount).toBe(0);
+  });
+
+  it("applyPlannedMove attacks with engine combat semantics", () => {
+    const board = new Board();
+    board.state.b = { ...board.state.b, owner: 2, troopCount: 1 };
+    board.applyPlannedMove(new Move("a3b"), 1);
+    expect(board.state.b).toMatchObject({ owner: 1, troopCount: 2 });
+  });
+});
