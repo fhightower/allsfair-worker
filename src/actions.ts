@@ -1,6 +1,7 @@
 // Port of actions.py. The ML bot is not shipped in v1, but its seam is kept:
 // the __ML_BOT__ secret convention, the ML guards in join/submit, and the
 // auto-submission hook point in submitMove (see the design spec).
+import { planBotTrio } from "./bot";
 import { Board, Move } from "./engine";
 import { InvalidSecret } from "./exceptions";
 import { ActionError } from "./errors";
@@ -9,6 +10,7 @@ import {
   type RoundState,
   getBoardAndRoundState,
   getGameByGuid,
+  getMlRoundContext,
   saveMove,
   updateGame,
   writeGame,
@@ -81,21 +83,50 @@ export async function createGame(
   d1: D1Database,
   body: Record<string, unknown>
 ): Promise<ResponseContent> {
-  if (parseBool(body.play_against_ml)) {
-    throw new ActionError("Play against ML is not yet supported");
-  }
+  const playAgainstMl = parseBool(body.play_against_ml);
   const game: Game = {
     gameGuid: crypto.randomUUID(),
     player1Secret: crypto.randomUUID(),
-    player2Secret: "",
+    player2Secret: playAgainstMl
+      ? `${ML_BOT_SECRET_PREFIX}:${crypto.randomUUID()}`
+      : "",
   };
   await writeGame(d1, game);
   return {
     game_guid: game.gameGuid,
     secret: game.player1Secret,
     html: new Board().toHtmlTable(),
-    play_against_ml: false,
+    play_against_ml: playAgainstMl,
   };
+}
+
+// Port of the Python `_generate_ml_moves_if_needed`: once player 1 has
+// finished a trio and the bot is behind, plan the bot's trio from the
+// round-start board and write only the moves not already persisted —
+// idempotent under concurrent polling.
+async function generateMlMovesIfNeeded(
+  d1: D1Database,
+  gameGuid: string,
+  rs: RoundState
+): Promise<RoundState> {
+  while (!rs.board.winner && rs.p1Count % 3 === 0 && rs.p1Count > rs.p2Count) {
+    const roundIndex = Math.floor(rs.p2Count / 3);
+    if (rs.p1Count < (roundIndex + 1) * 3) break;
+
+    const { board, botMovesInRound } = await getMlRoundContext(
+      d1,
+      gameGuid,
+      roundIndex
+    );
+    const planned = planBotTrio(board, gameGuid, roundIndex);
+    const pending = planned.slice(Math.min(botMovesInRound.length, 3));
+    if (pending.length === 0) break;
+
+    for (const moveStr of pending) {
+      rs = await saveMove(d1, gameGuid, new Move(moveStr), 2);
+    }
+  }
+  return rs;
 }
 
 export async function joinGame(
@@ -147,9 +178,10 @@ export async function submitMove(
   }
 
   const move = new Move(moveStr);
-  const rs = await saveMove(d1, gameGuid, move, Number(player));
-  // Bot auto-submission hook: when the bot returns, ML trio generation
-  // slots in here.
+  let rs = await saveMove(d1, gameGuid, move, Number(player));
+  if (playAgainstMl && String(player) === "1") {
+    rs = await generateMlMovesIfNeeded(d1, gameGuid, rs);
+  }
   return roundStateResponse(gameGuid, secret, playAgainstMl, rs);
 }
 
@@ -168,6 +200,10 @@ export async function getMoves(
     throw new InvalidSecret();
   }
 
-  const rs = await getBoardAndRoundState(d1, gameGuid);
-  return roundStateResponse(gameGuid, secret, isMlGame(game), rs);
+  const playAgainstMl = isMlGame(game);
+  let rs = await getBoardAndRoundState(d1, gameGuid);
+  if (playAgainstMl && String(player) === "1") {
+    rs = await generateMlMovesIfNeeded(d1, gameGuid, rs);
+  }
+  return roundStateResponse(gameGuid, secret, playAgainstMl, rs);
 }

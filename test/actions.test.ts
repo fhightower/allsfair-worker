@@ -7,7 +7,6 @@ import {
   submitMove,
 } from "../src/actions";
 import { getGameByGuid, writeGame } from "../src/db";
-import { ActionError } from "../src/errors";
 import { InvalidSecret } from "../src/exceptions";
 import { createTestDb } from "./d1-shim";
 
@@ -28,13 +27,12 @@ describe("create_game", () => {
     expect(game.player2Secret).toBe("");
   });
 
-  it("rejects play_against_ml in v1 (bot seam)", async () => {
-    await expect(createGame(db, { play_against_ml: true })).rejects.toThrow(
-      "Play against ML is not yet supported"
-    );
-    await expect(
-      createGame(db, { play_against_ml: "true" })
-    ).rejects.toBeInstanceOf(ActionError);
+  it("creates a bot game when play_against_ml is set", async () => {
+    const resp = await createGame(db, { play_against_ml: true });
+    expect(resp.play_against_ml).toBe(true);
+    const game = await getGameByGuid(db, resp.game_guid);
+    expect(game.player2Secret.startsWith("__ML_BOT__")).toBe(true);
+    expect(isMlGame(game)).toBe(true);
   });
 });
 
@@ -168,5 +166,75 @@ describe("get_moves", () => {
         player: 1,
       })
     ).rejects.toBeInstanceOf(InvalidSecret);
+  });
+});
+
+describe("bot games", () => {
+  async function createBotGame() {
+    return createGame(db, { play_against_ml: true });
+  }
+
+  it("bot answers player 1's trio and completes the round", async () => {
+    const created = await createBotGame();
+    let resp;
+    for (const m of ["a1b", "a1d", "b1e"]) {
+      resp = await submitMove(db, {
+        game_guid: created.game_guid,
+        move: m,
+        secret: created.secret,
+        player: 1,
+      });
+    }
+    expect(resp!.player_2_move_count).toBe(3);
+    expect(resp!.round_complete).toBe(true);
+    expect(resp!.completed_rounds).toBe(1);
+  });
+
+  it("does not move the bot before player 1 finishes the trio", async () => {
+    const created = await createBotGame();
+    const resp = await submitMove(db, {
+      game_guid: created.game_guid,
+      move: "a1b",
+      secret: created.secret,
+      player: 1,
+    });
+    expect(resp.player_2_move_count).toBe(0);
+  });
+
+  it("get_moves polling does not duplicate bot moves", async () => {
+    const created = await createBotGame();
+    for (const m of ["a1b", "a1d", "b1e"]) {
+      await submitMove(db, {
+        game_guid: created.game_guid,
+        move: m,
+        secret: created.secret,
+        player: 1,
+      });
+    }
+    const q = { game_guid: created.game_guid, secret: created.secret, player: 1 };
+    const first = await getMoves(db, q);
+    const second = await getMoves(db, q);
+    expect(first.player_2_move_count).toBe(3);
+    expect(second.player_2_move_count).toBe(3);
+  });
+
+  it("supports multiple rounds", async () => {
+    const created = await createBotGame();
+    const trios = ["a1b", "a1d", "b1e", "a1b", "a1d", "d1e"];
+    for (const m of trios) {
+      await submitMove(db, {
+        game_guid: created.game_guid,
+        move: m,
+        secret: created.secret,
+        player: 1,
+      });
+    }
+    const resp = await getMoves(db, {
+      game_guid: created.game_guid,
+      secret: created.secret,
+      player: 1,
+    });
+    expect(resp.player_2_move_count).toBe(6);
+    expect(resp.completed_rounds).toBe(2);
   });
 });
