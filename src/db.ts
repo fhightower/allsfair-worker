@@ -125,3 +125,29 @@ export async function saveMove(
   await writeMove(db, gameGuid, move, player);
   return getBoardAndRoundState(db, gameGuid);
 }
+
+export async function getMlRoundContext(
+  db: D1Database,
+  gameGuid: string,
+  roundIndex: number
+): Promise<{ board: Board; botMovesInRound: string[] }> {
+  const moves = await getMovesForGuid(db, gameGuid);
+  const p1Moves: Move[] = [];
+  const p2Moves: Move[] = [];
+  for (const m of moves) {
+    (m.player === 1 ? p1Moves : p2Moves).push(new Move(m.moveString));
+  }
+
+  const board = new Board();
+  const priorPairCount = roundIndex * 3;
+  const pairCount = Math.min(priorPairCount, p1Moves.length, p2Moves.length);
+  for (let i = 0; i < pairCount; i++) {
+    board.applyMovePair(new MovePair(p1Moves[i], p2Moves[i]));
+    if ((i + 1) % 3 === 0) board.restock();
+  }
+
+  const botMovesInRound = p2Moves
+    .slice(priorPairCount, priorPairCount + 3)
+    .map((m) => m.toString());
+  return { board, botMovesInRound };
+}
