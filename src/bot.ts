@@ -2,6 +2,11 @@
 // (allsfair repo, scripts/search_bot_eval.py): 76% wins vs heuristic,
 // 94% vs the old hybrid Q-bot. Weights and parameters are measured values —
 // re-run the Python eval harness before changing them.
+//
+// Known deviation from the prototype: score ties break on the real move
+// string here vs the mirrored action key in Python, and the RNG streams
+// differ — so move-for-move trajectories diverge. Strength is verified
+// directly by test/bot.strength.test.ts, not by cross-language parity.
 import { Board, Move, MovePair, TEAM_1, TEAM_2 } from "./engine";
 import { choice, makeRng } from "./rng";
 
