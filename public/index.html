@@ -656,11 +656,25 @@
                 document.getElementById('move3').value.trim().toLowerCase(),
             ];
 
-            // Basic client-side format check
-            const movePattern = /^[a-i]\d+[a-i]$/;
+            // Client-side format AND adjacency check. Must reject everything the
+            // server would: a server rejection mid-trio would leave the trio
+            // partially committed, and a full resubmit would misalign the round.
+            const NEIGHBORS = {
+                a: ['b', 'd'], b: ['a', 'c', 'e'], c: ['b', 'f'],
+                d: ['a', 'e', 'g'], e: ['b', 'd', 'f', 'h'], f: ['c', 'e', 'i'],
+                g: ['d', 'h'], h: ['e', 'g', 'i'], i: ['f', 'h'],
+            };
+            const movePattern = /^([a-i])(\d+)([a-i])$/;
             for (const m of moves) {
-                if (!movePattern.test(m)) {
+                const match = movePattern.exec(m);
+                if (!match) {
                     errEl.textContent = `Invalid move format: "${m}". Use format like "a2b".`;
+                    btn.disabled = false;
+                    btn.textContent = 'Submit Moves';
+                    return;
+                }
+                if (!NEIGHBORS[match[1]].includes(match[3])) {
+                    errEl.textContent = `Invalid move: "${m}". "${match[1]}" and "${match[3]}" are not adjacent.`;
                     btn.disabled = false;
                     btn.textContent = 'Submit Moves';
                     return;
@@ -668,8 +682,22 @@
             }
 
             try {
-                let latestResponse = null;
-                for (const move of moves) {
+                // Resume-from-committed: if a previous submit failed partway
+                // (e.g. network drop), some of this trio is already saved.
+                // Ask the server how many, and only submit the remainder.
+                const current = await api('get_moves', {
+                    game_guid: gameGuid,
+                    secret: secret,
+                    player: String(playerNumber),
+                });
+                syncModeFromResponse(current);
+                const myCount = String(playerNumber) === '1'
+                    ? current.player_1_move_count
+                    : current.player_2_move_count;
+                const alreadyInRound = myCount % 3;
+
+                let latestResponse = current;
+                for (const move of moves.slice(alreadyInRound)) {
                     const data = await api('submit_move', {
                         game_guid: gameGuid,
                         move: move,
