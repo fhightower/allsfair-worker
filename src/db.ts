@@ -56,11 +56,23 @@ export async function getGameByGuid(
   };
 }
 
-export async function updateGame(db: D1Database, game: Game): Promise<void> {
-  await db
-    .prepare("UPDATE games SET player_2_secret = ? WHERE game_guid = ?")
-    .bind(game.player2Secret, game.gameGuid)
+/**
+ * Atomically claim the player-2 slot. Conditional UPDATE prevents the
+ * lost-update race where two concurrent joins both pass a read-side check
+ * and the second silently overwrites the first joiner's secret.
+ */
+export async function claimPlayer2Slot(
+  db: D1Database,
+  gameGuid: string,
+  secret: string
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      "UPDATE games SET player_2_secret = ? WHERE game_guid = ? AND player_2_secret = ''"
+    )
+    .bind(secret, gameGuid)
     .run();
+  return result.meta.changes > 0;
 }
 
 export async function writeMove(
@@ -75,6 +87,28 @@ export async function writeMove(
     )
     .bind(gameGuid, move.toString(), player)
     .run();
+}
+
+/**
+ * Count-guarded bot-move insert: writes the move only if the game's current
+ * player-2 move count equals `expectedP2Count`. Makes concurrent bot-trio
+ * generation single-winner — the loser inserts nothing.
+ */
+export async function writeBotMoveIfCountMatches(
+  db: D1Database,
+  gameGuid: string,
+  moveString: string,
+  expectedP2Count: number
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO moves (game_guid, move_string, player)
+       SELECT ?, ?, 2
+       WHERE (SELECT COUNT(*) FROM moves WHERE game_guid = ? AND player = 2) = ?`
+    )
+    .bind(gameGuid, moveString, gameGuid, expectedP2Count)
+    .run();
+  return result.meta.changes > 0;
 }
 
 export async function getMovesForGuid(

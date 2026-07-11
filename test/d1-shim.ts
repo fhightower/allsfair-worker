@@ -33,8 +33,8 @@ function statement(
       return { results: db.prepare(sql).all(...params) as T[] };
     },
     async run() {
-      db.prepare(sql).run(...params);
-      return { success: true };
+      const result = db.prepare(sql).run(...params);
+      return { success: true, meta: { changes: Number(result.changes) } };
     },
   } as unknown as D1PreparedStatement;
 }

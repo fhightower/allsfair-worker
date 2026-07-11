@@ -10,9 +10,10 @@ import {
   type RoundState,
   getBoardAndRoundState,
   getGameByGuid,
+  claimPlayer2Slot,
   getMlRoundContext,
   saveMove,
-  updateGame,
+  writeBotMoveIfCountMatches,
   writeGame,
 } from "./db";
 
@@ -102,8 +103,9 @@ export async function createGame(
 
 // Port of the Python `_generate_ml_moves_if_needed`: once player 1 has
 // finished a trio and the bot is behind, plan the bot's trio from the
-// round-start board and write only the moves not already persisted —
-// idempotent under concurrent polling.
+// round-start board and write the missing moves. Each write is count-guarded
+// so concurrent requests (submit_move racing a get_moves poll) can't both
+// insert a trio — the loser writes nothing and returns fresh state.
 async function generateMlMovesIfNeeded(
   d1: D1Database,
   gameGuid: string,
@@ -122,9 +124,24 @@ async function generateMlMovesIfNeeded(
     const pending = planned.slice(Math.min(botMovesInRound.length, 3));
     if (pending.length === 0) break;
 
+    let expectedP2Count = roundIndex * 3 + botMovesInRound.length;
+    let lostRace = false;
     for (const moveStr of pending) {
-      rs = await saveMove(d1, gameGuid, new Move(moveStr), 2);
+      const won = await writeBotMoveIfCountMatches(
+        d1,
+        gameGuid,
+        moveStr,
+        expectedP2Count
+      );
+      if (!won) {
+        lostRace = true;
+        break;
+      }
+      expectedP2Count++;
     }
+
+    rs = await getBoardAndRoundState(d1, gameGuid);
+    if (lostRace) break; // a concurrent request is writing this trio
   }
   return rs;
 }
@@ -141,16 +158,15 @@ export async function joinGame(
       "Game is configured for Play against ML and cannot be joined"
     );
   }
-  if (game.player2Secret) {
+  const secret = crypto.randomUUID();
+  const claimed = await claimPlayer2Slot(d1, gameGuid, secret);
+  if (!claimed) {
     throw new ActionError("Game is already joined");
   }
 
-  game.player2Secret = crypto.randomUUID();
-  await updateGame(d1, game);
-
   return {
     game_guid: game.gameGuid,
-    secret: game.player2Secret,
+    secret,
     html: new Board().toHtmlTable(),
     play_against_ml: false,
   };

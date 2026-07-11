@@ -6,7 +6,8 @@ import {
   joinGame,
   submitMove,
 } from "../src/actions";
-import { getGameByGuid, writeGame } from "../src/db";
+import { getGameByGuid, writeGame, writeMove } from "../src/db";
+import { Move } from "../src/engine";
 import { InvalidSecret } from "../src/exceptions";
 import { createTestDb } from "./d1-shim";
 
@@ -216,6 +217,18 @@ describe("bot games", () => {
     const second = await getMoves(db, q);
     expect(first.player_2_move_count).toBe(3);
     expect(second.player_2_move_count).toBe(3);
+  });
+
+  it("concurrent polls generate the bot trio exactly once", async () => {
+    const created = await createBotGame();
+    // write P1's trio directly so bot generation is still pending
+    for (const m of ["a1b", "a1d", "b1e"]) {
+      await writeMove(db, created.game_guid, new Move(m), 1);
+    }
+    const q = { game_guid: created.game_guid, secret: created.secret, player: 1 };
+    await Promise.all([getMoves(db, q), getMoves(db, q)]);
+    const final = await getMoves(db, q);
+    expect(final.player_2_move_count).toBe(3);
   });
 
   it("supports multiple rounds", async () => {

@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  claimPlayer2Slot,
   GameNotFound,
   getMlRoundContext,
   getBoardAndRoundState,
   getGameByGuid,
   getMovesForGuid,
   saveMove,
-  updateGame,
+  writeBotMoveIfCountMatches,
   writeGame,
   writeMove,
 } from "../src/db";
@@ -33,9 +34,12 @@ describe("games", () => {
     );
   });
 
-  it("updates player 2 secret", async () => {
+  it("claims the player 2 slot exactly once", async () => {
     await writeGame(db, game);
-    await updateGame(db, { ...game, player2Secret: "s2" });
+    expect(await claimPlayer2Slot(db, "g-1", "s2")).toBe(true);
+    expect((await getGameByGuid(db, "g-1")).player2Secret).toBe("s2");
+    // second concurrent-style claim loses
+    expect(await claimPlayer2Slot(db, "g-1", "s3")).toBe(false);
     expect((await getGameByGuid(db, "g-1")).player2Secret).toBe("s2");
   });
 });
@@ -101,5 +105,23 @@ describe("getMlRoundContext", () => {
     expect(ctx.board.state.a.troopCount).toBe(4);
     expect(ctx.board.state.i.troopCount).toBe(4);
     expect(ctx.botMovesInRound).toEqual([]);
+  });
+});
+
+describe("writeBotMoveIfCountMatches", () => {
+  it("inserts only when the player-2 move count matches", async () => {
+    expect(await writeBotMoveIfCountMatches(db, "g-b", "i1h", 0)).toBe(true);
+    // stale expectation (another writer won): no insert
+    expect(await writeBotMoveIfCountMatches(db, "g-b", "i1f", 0)).toBe(false);
+    expect(await writeBotMoveIfCountMatches(db, "g-b", "i1f", 1)).toBe(true);
+    expect(await getMovesForGuid(db, "g-b")).toEqual([
+      { moveString: "i1h", player: 2 },
+      { moveString: "i1f", player: 2 },
+    ]);
+  });
+
+  it("counts only player-2 moves in the guard", async () => {
+    await writeMove(db, "g-c", new Move("a1b"), 1);
+    expect(await writeBotMoveIfCountMatches(db, "g-c", "i1h", 0)).toBe(true);
   });
 });
